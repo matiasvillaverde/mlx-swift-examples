@@ -410,12 +410,21 @@ public class LLMModelFactory: ModelFactory {
     public func _load(
         hub: HubApi, configuration: ModelConfiguration,
         progressHandler: @Sendable @escaping (Progress) -> Void
-    ) async throws -> sending ModelContext {
-        // download weights and config
-        let modelDirectory = try await downloadModel(
-            hub: hub, configuration: configuration, progressHandler: progressHandler)
+    ) async throws -> ModelContext {
+        // Create progress tracker
+        let progress = Progress(totalUnitCount: 100)
 
-        // Load the generic config to understand which model and how to load the weights
+        // Step 1: Download (0-30%)
+        progressHandler(progress)
+        let modelDirectory = try await downloadModel(
+            hub: hub,
+            configuration: configuration) { _ in
+                progress.completedUnitCount = 30
+                progressHandler(progress)
+            }
+
+        // Step 2: Load config and create model (30-50%)
+        // load the generic config to understand which model and how to load the weights
         let configurationURL = modelDirectory.appending(component: "config.json")
 
         let baseConfig: BaseConfiguration
@@ -436,12 +445,23 @@ public class LLMModelFactory: ModelFactory {
                 configurationURL.lastPathComponent, configuration.name, error)
         }
 
+        progress.completedUnitCount = 50
+        progressHandler(progress)
+
+        // Step 3: Load weights (50-80%)
         // apply the weights to the bare model
         try loadWeights(
             modelDirectory: modelDirectory, model: model,
             perLayerQuantization: baseConfig.perLayerQuantization)
 
+        progress.completedUnitCount = 80
+        progressHandler(progress)
+
+        // Step 4: Load tokenizer (80-100%)
         let tokenizer = try await loadTokenizer(configuration: configuration, hub: hub)
+
+        progress.completedUnitCount = 100
+        progressHandler(progress)
 
         let messageGenerator =
             if let model = model as? LLMModel {
