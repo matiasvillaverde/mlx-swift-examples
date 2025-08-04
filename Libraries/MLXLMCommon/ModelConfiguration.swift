@@ -54,7 +54,7 @@ public struct ModelConfiguration: Sendable {
         directory: URL,
         tokenizerId: String? = nil, overrideTokenizer: String? = nil,
         defaultPrompt: String = "hello",
-        extraEOSTokens: Set<String> = []
+        extraEOSTokens: Set<String> = ["<end_of_turn>"]
     ) {
         self.id = .directory(directory)
         self.tokenizerId = tokenizerId
